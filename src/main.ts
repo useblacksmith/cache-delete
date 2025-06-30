@@ -1,5 +1,23 @@
 import { getInput, setFailed, info } from "@actions/core";
-import fetch from "node-fetch";
+import fetch, { RequestInit, Response } from "node-fetch";
+
+async function fetchWithRetry(url: string, options: RequestInit, maxRetries = 3): Promise<Response> {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const response = await fetch(url, options);
+      return response;
+    } catch (error) {
+      if (attempt === maxRetries) {
+        throw error;
+      }
+      
+      const delay = Math.pow(2, attempt) * 1000;
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+  
+  throw new Error("Retry loop completed without return or throw");
+}
 
 interface DeleteCacheParams {
   cacheKey: string;
@@ -36,7 +54,7 @@ export async function deleteCache({
   const resource = cacheVersion ? `${cacheKey}/${cacheVersion}` : cacheKey;
   const url = `${baseUrl}/caches/${resource}`;
 
-  const response = await fetch(prefix ? `${url}?prefix` : url, {
+  const response = await fetchWithRetry(prefix ? `${url}?prefix` : url, {
     method: "DELETE",
     headers: {
       Accept: "application/json; version=6.0-preview.1",
