@@ -31418,6 +31418,22 @@ var __webpack_exports__ = {};
 /* harmony import */ var node_fetch__WEBPACK_IMPORTED_MODULE_1___default = /*#__PURE__*/__nccwpck_require__.n(node_fetch__WEBPACK_IMPORTED_MODULE_1__);
 
 
+async function fetchWithRetry(url, options, maxRetries = 3) {
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        try {
+            const response = await node_fetch__WEBPACK_IMPORTED_MODULE_1___default()(url, options);
+            return response;
+        }
+        catch (error) {
+            if (attempt === maxRetries) {
+                throw error;
+            }
+            const delay = Math.pow(2, attempt) * 1000;
+            await new Promise(resolve => setTimeout(resolve, delay));
+        }
+    }
+    throw new Error("Retry loop completed without return or throw");
+}
 async function deleteCache(_a) {
     var _b, _c, _d;
     var { cacheKey, cacheVersion, prefix = false, baseUrl = process.env.BLACKSMITH_CACHE_URL ||
@@ -31435,7 +31451,7 @@ async function deleteCache(_a) {
     }
     const resource = cacheVersion ? `${cacheKey}/${cacheVersion}` : cacheKey;
     const url = `${baseUrl}/caches/${resource}`;
-    const response = await node_fetch__WEBPACK_IMPORTED_MODULE_1___default()(prefix ? `${url}?prefix` : url, {
+    const response = await fetchWithRetry(prefix ? `${url}?prefix` : url, {
         method: "DELETE",
         headers: {
             Accept: "application/json; version=6.0-preview.1",
