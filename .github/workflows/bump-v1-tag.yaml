@@ -1,0 +1,32 @@
+name: Bump v1 Tag on Main
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  bump-v1-tag:
+    runs-on: blacksmith-2vcpu-ubuntu-2204
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Update v1 tag
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email github-actions[bot]@users.noreply.github.com
+          git tag -fa v1 -m "Update v1 tag to latest commit on main"
+          git push origin v1 --force
+
+      - name: Send Slack notification on success
+        uses: slackapi/slack-github-action@v1
+        with:
+          payload: |
+            {
+              "text": "Updated cache-delete v1 tag to the latest commit on main"
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.CACHE_SLACK_WEBHOOK_URL }}
