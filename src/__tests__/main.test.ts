@@ -20,33 +20,34 @@ describe("deleteCache", () => {
       ok: true,
       status: 200,
       statusText: "OK",
-      json: () => Promise.resolve({ deleted: 1 }),
+      json: () => Promise.resolve({ count: 1 }),
     } as Response);
   });
 
   const defaultParams = {
-    baseUrl: "https://api.blacksmith.sh/cache",
-    repoName: "test-repo",
+    baseUrl: "http://baseurl/",
     cacheToken: "test-token",
-    region: "eu-central",
   };
 
-  it("should send DELETE request for a specific cache key", async () => {
+  it("should send request to delete a specific cache key", async () => {
     await deleteCache({
       cacheKey: "npm-cache",
       ...defaultParams,
     });
 
     expect(mockedFetch).toHaveBeenCalledWith(
-      "https://api.blacksmith.sh/cache/caches/npm-cache",
+      "http://baseurl/twirp/github.actions.results.api.v1.CacheService/DeleteCacheEntry",
       {
-        method: "DELETE",
+        method: "POST",
         headers: {
+          "Content-Type": "application/json",
           Accept: "application/json; version=6.0-preview.1",
-          "X-GitHub-Repo-Name": "test-repo",
           Authorization: "Bearer test-token",
-          "X-Cache-Region": "eu-central",
         },
+        body: JSON.stringify({
+          key: "npm-cache",
+          prefix: false,
+        }),
       }
     );
     expect(mockedInfo).toHaveBeenCalledWith(
@@ -55,7 +56,7 @@ describe("deleteCache", () => {
     expect(mockedInfo).toHaveBeenCalledWith("Deleted 1 cache entries");
   });
 
-  it("should send DELETE request for a specific cache version", async () => {
+  it("should send request to delete a specific cache version", async () => {
     await deleteCache({
       cacheKey: "npm-cache",
       cacheVersion: "v1.0",
@@ -63,15 +64,19 @@ describe("deleteCache", () => {
     });
 
     expect(mockedFetch).toHaveBeenCalledWith(
-      "https://api.blacksmith.sh/cache/caches/npm-cache/v1.0",
+      "http://baseurl/twirp/github.actions.results.api.v1.CacheService/DeleteCacheEntry",
       {
-        method: "DELETE",
+        method: "POST",
         headers: {
+          "Content-Type": "application/json",
           Accept: "application/json; version=6.0-preview.1",
-          "X-GitHub-Repo-Name": "test-repo",
           Authorization: "Bearer test-token",
-          "X-Cache-Region": "eu-central",
         },
+        body: JSON.stringify({
+          key: "npm-cache",
+          version: "v1.0",
+          prefix: false,
+        }),
       }
     );
     expect(mockedInfo).toHaveBeenCalledWith(
@@ -80,12 +85,12 @@ describe("deleteCache", () => {
     expect(mockedInfo).toHaveBeenCalledWith("Deleted 1 cache entries");
   });
 
-  it("should send DELETE request with prefix parameter", async () => {
+  it("should send request with prefix parameter", async () => {
     mockedFetch.mockResolvedValue({
       ok: true,
       status: 200,
       statusText: "OK",
-      json: () => Promise.resolve({ deleted: 5 }),
+      json: () => Promise.resolve({ count: 5 }),
     } as Response);
 
     await deleteCache({
@@ -95,15 +100,18 @@ describe("deleteCache", () => {
     });
 
     expect(mockedFetch).toHaveBeenCalledWith(
-      "https://api.blacksmith.sh/cache/caches/npm-?prefix",
+      "http://baseurl/twirp/github.actions.results.api.v1.CacheService/DeleteCacheEntry",
       {
-        method: "DELETE",
+        method: "POST",
         headers: {
+          "Content-Type": "application/json",
           Accept: "application/json; version=6.0-preview.1",
-          "X-GitHub-Repo-Name": "test-repo",
           Authorization: "Bearer test-token",
-          "X-Cache-Region": "eu-central",
         },
+        body: JSON.stringify({
+          key: "npm-",
+          prefix: true,
+        }),
       }
     );
     expect(mockedInfo).toHaveBeenCalledWith(
@@ -112,12 +120,12 @@ describe("deleteCache", () => {
     expect(mockedInfo).toHaveBeenCalledWith("Deleted 5 cache entries");
   });
 
-  it("should send DELETE request with empty key and prefix parameter", async () => {
+  it("should send request with empty key and prefix parameter", async () => {
     mockedFetch.mockResolvedValue({
       ok: true,
       status: 200,
       statusText: "OK",
-      json: () => Promise.resolve({ deleted: 10 }),
+      json: () => Promise.resolve({ count: 10 }),
     } as Response);
 
     await deleteCache({
@@ -127,15 +135,18 @@ describe("deleteCache", () => {
     });
 
     expect(mockedFetch).toHaveBeenCalledWith(
-      "https://api.blacksmith.sh/cache/caches/?prefix",
+      "http://baseurl/twirp/github.actions.results.api.v1.CacheService/DeleteCacheEntry",
       {
-        method: "DELETE",
+        method: "POST",
         headers: {
+          "Content-Type": "application/json",
           Accept: "application/json; version=6.0-preview.1",
-          "X-GitHub-Repo-Name": "test-repo",
           Authorization: "Bearer test-token",
-          "X-Cache-Region": "eu-central",
         },
+        body: JSON.stringify({
+          key: "",
+          prefix: true,
+        }),
       }
     );
     expect(mockedInfo).toHaveBeenCalledWith(
