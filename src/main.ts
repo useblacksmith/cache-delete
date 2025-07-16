@@ -24,23 +24,20 @@ interface DeleteCacheParams {
   cacheVersion?: string;
   prefix?: boolean;
   baseUrl?: string;
-  repoName?: string;
   cacheToken?: string;
-  region?: string;
 }
 
 export async function deleteCache({
   cacheKey,
   cacheVersion,
   prefix = false,
-  baseUrl = process.env.BLACKSMITH_CACHE_URL ||
-    (process.env.PETNAME?.includes("staging")
-      ? "https://stagingapi.blacksmith.sh/cache"
-      : "https://api.blacksmith.sh/cache"),
-  repoName = process.env["GITHUB_REPO_NAME"] ?? "",
+  baseUrl = process.env.ACTIONS_RESULTS_URL ?? "",
   cacheToken = process.env["BLACKSMITH_CACHE_TOKEN"],
-  region = process.env["BLACKSMITH_REGION"] ?? "eu-central",
 }: DeleteCacheParams): Promise<void> {
+  if (!baseUrl) {
+    throw new Error("ACTIONS_RESULTS_URL not set");
+  }
+
   if (!cacheKey && !prefix) {
     throw new Error("Cache key cannot be empty unless prefix is true");
   }
@@ -51,17 +48,25 @@ export async function deleteCache({
     throw new Error("Cannot specify version when using prefix");
   }
 
-  const resource = cacheVersion ? `${cacheKey}/${cacheVersion}` : cacheKey;
-  const url = `${baseUrl}/caches/${resource}`;
+  // The baseURL always has a trailing slash, but we still add it in case it is missing.
+  if (!baseUrl.endsWith("/")) {
+    baseUrl = `${baseUrl}/`;
+  }
+  const url = `${baseUrl}twirp/github.actions.results.api.v1.CacheService/DeleteCacheEntry`;
 
-  const response = await fetchWithRetry(prefix ? `${url}?prefix` : url, {
-    method: "DELETE",
+  const response = await fetchWithRetry(url, {
+    // Twirp endpoints all use POST.
+    method: "POST",
     headers: {
+      "Content-Type": "application/json",
       Accept: "application/json; version=6.0-preview.1",
-      "X-GitHub-Repo-Name": repoName,
       Authorization: `Bearer ${cacheToken}`,
-      "X-Cache-Region": region,
     },
+    body: JSON.stringify({
+      key: cacheKey,
+      version: cacheVersion,
+      prefix,
+    }),
   });
 
   if (!response.ok && response.status !== 404) {
@@ -81,8 +86,8 @@ export async function deleteCache({
         cacheVersion ? " version" : ""
       }: ${cacheKey}${cacheVersion ? `@${cacheVersion}` : ""}`
     );
-    if (data.deleted !== undefined) {
-      info(`Deleted ${data.deleted} cache entries`);
+    if (data.count !== undefined) {
+      info(`Deleted ${data.count} cache entries`);
     }
   }
 }

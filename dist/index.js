@@ -31435,11 +31435,11 @@ async function fetchWithRetry(url, options, maxRetries = 3) {
     throw new Error("Retry loop completed without return or throw");
 }
 async function deleteCache(_a) {
-    var _b, _c, _d;
-    var { cacheKey, cacheVersion, prefix = false, baseUrl = process.env.BLACKSMITH_CACHE_URL ||
-        (((_b = process.env.PETNAME) === null || _b === void 0 ? void 0 : _b.includes("staging"))
-            ? "https://stagingapi.blacksmith.sh/cache"
-            : "https://api.blacksmith.sh/cache"), repoName = (_c = process.env["GITHUB_REPO_NAME"]) !== null && _c !== void 0 ? _c : "", cacheToken = process.env["BLACKSMITH_CACHE_TOKEN"], region = (_d = process.env["BLACKSMITH_REGION"]) !== null && _d !== void 0 ? _d : "eu-central", } = _a;
+    var _b;
+    var { cacheKey, cacheVersion, prefix = false, baseUrl = (_b = process.env.ACTIONS_RESULTS_URL) !== null && _b !== void 0 ? _b : "", cacheToken = process.env["BLACKSMITH_CACHE_TOKEN"], } = _a;
+    if (!baseUrl) {
+        throw new Error("ACTIONS_RESULTS_URL not set");
+    }
     if (!cacheKey && !prefix) {
         throw new Error("Cache key cannot be empty unless prefix is true");
     }
@@ -31449,16 +31449,24 @@ async function deleteCache(_a) {
     if (prefix && cacheVersion) {
         throw new Error("Cannot specify version when using prefix");
     }
-    const resource = cacheVersion ? `${cacheKey}/${cacheVersion}` : cacheKey;
-    const url = `${baseUrl}/caches/${resource}`;
-    const response = await fetchWithRetry(prefix ? `${url}?prefix` : url, {
-        method: "DELETE",
+    // The baseURL always has a trailing slash, but we still add it in case it is missing.
+    if (!baseUrl.endsWith("/")) {
+        baseUrl = `${baseUrl}/`;
+    }
+    const url = `${baseUrl}twirp/github.actions.results.api.v1.CacheService/DeleteCacheEntry`;
+    const response = await fetchWithRetry(url, {
+        // Twirp endpoints all use POST.
+        method: "POST",
         headers: {
+            "Content-Type": "application/json",
             Accept: "application/json; version=6.0-preview.1",
-            "X-GitHub-Repo-Name": repoName,
             Authorization: `Bearer ${cacheToken}`,
-            "X-Cache-Region": region,
         },
+        body: JSON.stringify({
+            key: cacheKey,
+            version: cacheVersion,
+            prefix,
+        }),
     });
     if (!response.ok && response.status !== 404) {
         throw new Error(`Failed to delete cache: ${response.status} ${response.statusText}`);
@@ -31469,8 +31477,8 @@ async function deleteCache(_a) {
     else {
         const data = await response.json();
         (0,_actions_core__WEBPACK_IMPORTED_MODULE_0__.info)(`Successfully deleted ${prefix ? "caches with prefix" : "cache"}${cacheVersion ? " version" : ""}: ${cacheKey}${cacheVersion ? `@${cacheVersion}` : ""}`);
-        if (data.deleted !== undefined) {
-            (0,_actions_core__WEBPACK_IMPORTED_MODULE_0__.info)(`Deleted ${data.deleted} cache entries`);
+        if (data.count !== undefined) {
+            (0,_actions_core__WEBPACK_IMPORTED_MODULE_0__.info)(`Deleted ${data.count} cache entries`);
         }
     }
 }
