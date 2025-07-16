@@ -1,0 +1,91 @@
+name: Bump Version
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Version tag (e.g., v1, v2)"
+        required: true
+        type: string
+      commit_sha:
+        description: "Commit SHA to tag (optional, defaults to latest main)"
+        required: false
+        type: string
+
+jobs:
+  bump-version:
+    runs-on: blacksmith-2vcpu-ubuntu-2204
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate inputs and determine commit
+        id: validate
+        run: |
+          tag="${{ github.event.inputs.tag }}"
+          commit_sha="${{ github.event.inputs.commit_sha }}"
+
+          # Check if tag already exists
+          if git rev-parse "$tag" >/dev/null 2>&1; then
+            echo "Tag $tag already exists"
+            echo "action=update" >> $GITHUB_OUTPUT
+          else
+            echo "Tag $tag does not exist, will create new tag"
+            echo "action=create" >> $GITHUB_OUTPUT
+          fi
+
+          # Determine which commit to use
+          if [ -n "$commit_sha" ]; then
+            # Validate the commit SHA exists and is on main
+            if git rev-parse "$commit_sha" >/dev/null 2>&1; then
+              # Check if commit is on main branch
+              if git merge-base --is-ancestor "$commit_sha" origin/main; then
+                echo "Using provided commit SHA: $commit_sha"
+                echo "target_commit=$commit_sha" >> $GITHUB_OUTPUT
+              else
+                echo "Error: Commit $commit_sha is not on main branch"
+                exit 1
+              fi
+            else
+              echo "Error: Commit SHA $commit_sha does not exist"
+              exit 1
+            fi
+          else
+            # Use latest commit on main
+            latest_commit=$(git rev-parse origin/main)
+            echo "Using latest commit on main: $latest_commit"
+            echo "target_commit=$latest_commit" >> $GITHUB_OUTPUT
+          fi
+
+          echo "tag=$tag" >> $GITHUB_OUTPUT
+
+      - name: Create or update tag
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email github-actions[bot]@users.noreply.github.com
+
+          tag="${{ steps.validate.outputs.tag }}"
+          target_commit="${{ steps.validate.outputs.target_commit }}"
+          action="${{ steps.validate.outputs.action }}"
+
+          if [ "$action" = "update" ]; then
+            # Update existing tag (force)
+            git tag -fa "$tag" "$target_commit" -m "Update $tag to commit $target_commit"
+            git push origin "$tag" --force
+          else
+            # Create new tag
+            git tag -a "$tag" "$target_commit" -m "Release $tag from commit $target_commit"
+            git push origin "$tag"
+          fi
+
+      - name: Send Slack notification on success
+        uses: slackapi/slack-github-action@v1
+        with:
+          payload: |
+            {
+              "text": "${{ steps.validate.outputs.action == 'create' && 'Created' || 'Updated' }} cache-delete tag ${{ steps.validate.outputs.tag }} pointing to commit ${{ steps.validate.outputs.target_commit }}"
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.CACHE_SLACK_WEBHOOK_URL }}
